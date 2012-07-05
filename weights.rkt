@@ -1,4 +1,7 @@
-#lang racket
+#lang racket/base
+(require racket/list
+         racket/string)
+(provide plan weights-format)
 
 (module+ test
   (require tests/eli-tester))
@@ -42,3 +45,10 @@
   (for*/list ([exercise (list-ref exercises day)]
               [workout (list-ref workouts week)])
     (list exercise (first workout) (weights (* (hash-ref maxes exercise) (second workout))))))
+
+(define (weights-format weights)
+  (string-join 
+   (for/list ([weight weights])
+     (format "~ax~a" (first weight) (second weight)))
+   ", "))
+
