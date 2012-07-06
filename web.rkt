@@ -6,45 +6,48 @@
          racket/list
          "weights.rkt")
 
-(define exercises '(("Squat" "Bench Press") ("Deadlift" "Military Press")))
+(define exercises (make-parameter '(("Squat" "Bench Press") ("Deadlift" "Military Press"))))
 
 (define (max-formlet exercise)
-  (formlet (p ,exercise
+  (formlet (label ,exercise
               ,(=> input-int max))
            (cons exercise max)))
 
 ; todo : Ask Jay about a #%#* form that would allow top level lists turn into forests
-(define (maxes-formlet exercises)
-  (formlet* `(div ,@(for*/list ([day exercises]
+(define maxes-formlet
+  (formlet* `(div ,@(for*/list ([day (exercises)]
                                 [exercise day])
                       (=>* (max-formlet exercise) maxes)))
             (make-hash maxes)))
 
+(define (max-form results-url)
+  (response/xexpr
+   `(html (head (title "fit")
+                (link ([rel "stylesheet"] [type "text/css"] [href "/style.css"])))
+          (body (form ([action ,results-url])
+                      ,@(formlet-display maxes-formlet)
+                      (input ([type "submit"])))))))
+
+(define (plan-table day week maxes)
+  (define a-plan (plan day week maxes (exercises)))
+  `(table
+    (tr (th "#") (th "Exercise") (th "Weights") (th "Reps") (th "Actual Reps"))
+    ,@(for/list ([i (in-naturals 1)]
+                 [row a-plan])
+        `(tr (td ,(number->string i))
+             (td ,(first row))
+             (td ,(weights-format (third row)))
+             (td ,(number->string (second row)))
+             (td)))))
 
 (define (start req)
-  (define new-req
-    (send/suspend
-     (λ (url)
-       (response/xexpr
-        `(html (head (title "fit"))
-               (body (form ([action ,url])
-                           ,@(formlet-display (maxes-formlet exercises))
-                           (input ([type "submit"])))))))))
-  (define maxes (formlet-process (maxes-formlet exercises) new-req))
+  (define maxes (formlet-process maxes-formlet (send/suspend max-form)))
   (response/xexpr
-   `(html (head (title "fit2"))
+   `(html (head (title "fit2")
+                (link ([rel "stylesheet"] [type "text/css"] [href "/style.css"])))
           (body 
            ,@(for*/list ([week (in-range 4)]
-                         [day (in-range (length exercises))])
-               (define a-plan (plan day week maxes exercises))
-               `(table
-                 (tr (th "#") (th "Exercise") (th "Weights") (th "Reps") (th "Actual Reps"))
-                 ,@(for/list ([i (in-naturals 1)]
-                              [row a-plan])
-                     `(tr (td ,(number->string i))
-                          (td ,(first row))
-                          (td ,(weights-format (third row)))
-                          (td ,(number->string (second row)))
-                          (td)))))))))
+                         [day (in-range (length (exercises)))])
+               (plan-table day week maxes))))))
 
-(serve/servlet start)
+(serve/servlet start #:server-root-path ".")
