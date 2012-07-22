@@ -40,7 +40,39 @@
              (td ,(number->string (second row)))
              (td)))))
 
+(define (cookie-lookup req key)
+  (define cookies (request-cookies req))
+  (define cookie (findf (λ (c) (string=? key (client-cookie-name c))) cookies))
+  (and cookie (client-cookie-value cookie)))
+
+(define username-formlet 
+  (formlet (label "username"
+                  ,(=> input-string username))
+           username))
+
+(define (username-form results-url)
+  (response/xexpr
+   `(html (head (title "fit-username")
+                (link ([rel "stylesheet"] [type "text/css"] [href "/style.css"])))
+          (body (form ([action ,results-url])
+                      ,@(formlet-display username-formlet)
+                      (input ([type "submit"])))))))
+
+(define (get-username req)
+  (define username (cookie-lookup req "username"))
+  (or username 
+      (let ()
+        (define username (formlet-process username-formlet (send/suspend username-form)))
+        (define main (url->string (request-uri req)))
+        (printf "~a\n" main)
+        (send/back
+         (redirect-to main see-other
+                      #:headers (list (cookie->header (make-cookie "username" username))))))))
+
+
+
 (define (start req)
+  (define username (get-username req))
   (define maxes (formlet-process maxes-formlet (send/suspend max-form)))
   (response/xexpr
    `(html (head (title "fit2")
